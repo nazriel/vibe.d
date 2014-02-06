@@ -119,7 +119,7 @@ struct SessionVar(T, string name) {
 	alias value this;
 }
 
-private {
+public {
 	TaskLocal!RequestContext s_requestContext;
 }
 

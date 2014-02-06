@@ -74,9 +74,14 @@ package class Libevent2TCPConnection : TCPConnection {
 		m_remoteAddress = ctx.remote_addr;
 
 		void* ptr;
-		if( ctx.remote_addr.family == AF_INET ) ptr = &ctx.remote_addr.sockAddrInet4.sin_addr;
+
+		if (ctx.remote_addr.family == AF_UNIX) ptr = &ctx.remote_addr.sockAddrUnix.sun_path;
+		else if( ctx.remote_addr.family == AF_INET ) ptr = &ctx.remote_addr.sockAddrInet4.sin_addr;
 		else ptr = &ctx.remote_addr.sockAddrInet6.sin6_addr;
+
 		evutil_inet_ntop(ctx.remote_addr.family, ptr, m_peerAddressBuf.ptr, m_peerAddressBuf.length);
+		
+		if (ctx.remote_addr.family != AF_UNIX)
 		m_peerAddress = cast(string)m_peerAddressBuf[0 .. m_peerAddressBuf.indexOf('\0')];
 
 		bufferevent_setwatermark(m_ctx.event, EV_WRITE, 4096, 65536);

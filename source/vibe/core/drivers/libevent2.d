@@ -297,6 +297,47 @@ class Libevent2Driver : EventDriver {
 		return new Libevent2TCPConnection(cctx);
 	}
 
+	TCPListener listenTCP(string unix_socket,  void delegate(TCPConnection conn) connection_callback, TCPListenOptions options)
+	{
+		//auto bind_addr = resolveHost(unix_socket, AF_UNIX, true);
+		NetworkAddress bind_addr;
+		bind_addr.parseUnixAddr(unix_socket);
+
+		auto listenfd_raw = socket(bind_addr.family, SOCK_STREAM, 0);
+		static if (typeof(listenfd_raw).max > int.max) assert(listenfd_raw <= int.max || listenfd_raw == ~0);
+		auto listenfd = cast(int)listenfd_raw;
+
+		socketEnforce(bind(listenfd, bind_addr.sockAddr, bind_addr.sockAddrLen) == 0,
+		              "Error binding listening socket");
+		socketEnforce(listen(listenfd, 128) == 0,
+		              "Error listening to listening socket");
+
+		// Set socket for non-blocking I/O
+		enforce(evutil_make_socket_nonblocking(listenfd) == 0,
+		        "Error setting listening socket to non-blocking I/O.");
+
+		auto ret = new LibeventTCPListener;
+
+		static void setupConnectionHandler(shared(LibeventTCPListener) listener, typeof(listenfd) listenfd, NetworkAddress bind_addr, shared(void delegate(TCPConnection conn)) connection_callback)
+		{
+			auto evloop = getThreadLibeventEventLoop();
+			auto core = getThreadLibeventDriverCore();
+			// Add an event to wait for connections
+			auto ctx = TCPContextAlloc.alloc(core, evloop, listenfd, null, bind_addr, NetworkAddress());
+			ctx.connectionCallback = cast()connection_callback;
+			ctx.listenEvent = event_new(evloop, listenfd, EV_READ | EV_PERSIST, &onConnect, ctx);
+			enforce(event_add(ctx.listenEvent, null) == 0,
+			        "Error scheduling connection event on the event loop.");
+			(cast()listener).addContext(ctx);
+		}
+		
+		// FIXME: the API needs improvement with proper shared annotations, so the the following casts are not necessary
+		if (options & TCPListenOptions.distribute) runWorkerTaskDist(&setupConnectionHandler, cast(shared)ret, listenfd, bind_addr, cast(shared)connection_callback);
+		else setupConnectionHandler(cast(shared)ret, listenfd, bind_addr, cast(shared)connection_callback);
+		
+		return ret;
+	}
+
 	TCPListener listenTCP(ushort port, void delegate(TCPConnection conn) connection_callback, string address, TCPListenOptions options)
 	{
 		auto bind_addr = resolveHost(address, AF_UNSPEC, false);

@@ -13,6 +13,8 @@ import vibe.core.driver;
 import vibe.core.log;
 
 import core.sys.posix.netinet.in_;
+import core.sys.posix.sys.un: sockaddr_un;
+import core.sys.posix.sys.socket: AF_UNIX;
 import core.time;
 import std.exception;
 import std.functional;
@@ -57,6 +59,11 @@ TCPListener[] listenTCP(ushort port, void delegate(TCPConnection stream) connect
 TCPListener listenTCP(ushort port, void delegate(TCPConnection stream) connection_callback, string address, TCPListenOptions options = TCPListenOptions.defaults)
 {
 	return getEventDriver().listenTCP(port, connection_callback, address, options);
+}
+
+TCPListener listenTCP(string unix_socket, void delegate(TCPConnection stream) connection_callback, TCPListenOptions options = TCPListenOptions.defaults)
+{
+	return getEventDriver().listenTCP(unix_socket, connection_callback, options);
 }
 
 /// Deprecated compatibility alias
@@ -118,8 +125,17 @@ struct NetworkAddress {
 		sockaddr addr;
 		sockaddr_in addr_ip4;
 		sockaddr_in6 addr_ip6;
+		sockaddr_un addr_unix;
 	}
 
+	void parseUnixAddr(string unix_sock) {
+		import std.string: toStringz;
+
+		addr.sa_family = AF_UNIX;
+		addr_unix.sun_path[0..unix_sock.length] = cast(byte[]) unix_sock;
+
+		if (unix_sock[$-1] != '\0') addr_unix.sun_path[unix_sock.length + 1] = '\0';
+	}
 	/** Family (AF_) of the socket address.
 	*/
 	@property ushort family() const pure nothrow { return addr.sa_family; }
@@ -158,6 +174,7 @@ struct NetworkAddress {
 			default: assert(false, "sockAddrLen() called for invalid address family.");
 			case AF_INET: return addr_ip4.sizeof;
 			case AF_INET6: return addr_ip6.sizeof;
+			case AF_UNIX: return addr_unix.sizeof;
 		}
 	}
 
@@ -168,6 +185,10 @@ struct NetworkAddress {
 	@property inout(sockaddr_in6)* sockAddrInet6() inout pure nothrow
 		in { assert (family == AF_INET6); }
 		body { return &addr_ip6; }
+
+	@property inout(sockaddr_un)* sockAddrUnix() inout pure nothrow 
+		in { assert(family == AF_UNIX); }
+		body { return &addr_unix; }
 
 	/** Returns a string representation of the IP address
 	*/
@@ -198,10 +219,13 @@ struct NetworkAddress {
 	string toString()
 	const {
 		auto ret = toAddressString();
+		import std.conv: to;
+
 		switch (this.family) {
 			default: assert(false, "toString() called for invalid address family.");
 			case AF_INET: return ret ~ format(":%s", port);
 			case AF_INET6: return format("[%s]:%s", ret, port);
+			case AF_UNIX: return addr_unix.sun_path.to!string();
 		}
 	}
 
@@ -213,6 +237,7 @@ struct NetworkAddress {
 		}
 		test("1.2.3.4");
 		test("102:304:506:708:90a:b0c:d0e:f10");
+		test("/tmp/unix.sock");
 	}
 }
 

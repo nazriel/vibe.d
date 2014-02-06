@@ -104,6 +104,12 @@ version(VibeWinrtDriver)
 			assert(false);
 		}
 
+		TCPListener listenTCP(string unix_socket,  void delegate(TCPConnection conn) connection_callback, TCPListenOptions options)
+		{
+			assert(false);
+		}
+
+
 		UDPConnection listenUDP(ushort port, string bind_address = "0.0.0.0")
 		{
 			assert(false);

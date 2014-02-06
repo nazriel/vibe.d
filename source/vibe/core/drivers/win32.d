@@ -305,6 +305,11 @@ class Win32EventDriver : EventDriver {
 		return new Win32TCPListener(this, sock, conn_callback);
 	}
 
+	TCPListener listenTCP(string unix_socket,  void delegate(TCPConnection conn) connection_callback, TCPListenOptions options)
+	{
+		assert(false, "Unix socket isn't available on Windows platform");
+	}
+
 	UDPConnection listenUDP(ushort port, string bind_address = "0.0.0.0")
 	{
 		assert(m_tid == GetCurrentThreadId());

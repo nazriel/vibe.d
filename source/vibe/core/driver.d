@@ -102,6 +102,7 @@ interface EventDriver {
 	*/
 	TCPListener listenTCP(ushort port, void delegate(TCPConnection conn) conn_callback, string bind_address, TCPListenOptions options);
 
+	TCPListener listenTCP(string unix_socket, void delegate(TCPConnection conn) conn_callback, TCPListenOptions options);
 	/// Deprecated compatibility alias
 	deprecated("Please use listenTCP instead.") alias listenTcp = listenTCP;
 
